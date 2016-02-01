@@ -1,0 +1,43 @@
+#!/system/bin/sh
+
+# make sure we're running as root
+if [ "$(/system/xbin/busybox id -u)" != "0" ]; then
+	if [ "$(/system/xbin/busybox id -g)" != "0" ]; then
+		echo "Must be root!"
+		exit 1
+	fi
+fi
+
+case $1 in
+	mount)
+		# wait for the sdcard to be mounted
+		if [ ! -f /storage/sdcard0/.ext-volume ]; then
+			echo "Image not found!"
+			exit 1
+		fi
+		if [ "$(/system/xbin/busybox mount | /system/xbin/busybox grep securesd)" != "" ]; then
+			echo "Already mounted!"
+			exit 1
+		fi
+
+		# create mount point
+		/system/bin/mkdir -p /data/extsd
+
+		# mount image
+		/system/xbin/busybox mknod /dev/block/securesd b 7 17
+		/system/xbin/busybox losetup /dev/block/securesd /storage/sdcard0/.ext-volume
+		/system/xbin/busybox mount /dev/block/securesd /data/extsd
+		exit 0
+		;;
+	unmount|umount)
+		# remove loop device
+		/system/xbin/busybox umount -f /data/extsd
+		#/system/xbin/busybox losetup -d /dev/block/securesd
+		/system/xbin/busybox rm -f /dev/block/securesd
+		exit 0
+		;;
+	*)
+		echo "Usage: securesd mount|unmount"
+		exit 1
+		;;
+esac
