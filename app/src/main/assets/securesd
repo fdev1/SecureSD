@@ -1,15 +1,97 @@
 #!/system/bin/sh
 
+
+IMAGEDIR=/sdcard/.securesd
+BUSYBOX=/system/xbin/busybox
+CRYPTSETUP=/system/xbin/cryptsetup
+KEY=/data/system/cryptsetup.key
+
+# resolve any symlinks in $IMAGEDIR
+IMAGEDIR=$($BUSYBOX readlink -f $IMAGEDIR)
+
 # make sure we're running as root
-if [ "$(/system/xbin/busybox id -u)" != "0" ]; then
-	if [ "$(/system/xbin/busybox id -g)" != "0" ]; then
-		echo "Must be root!"
-		exit 1
+check_root()
+{
+	if [ "$(/system/xbin/busybox id -u)" != "0" ]; then
+		if [ "$(/system/xbin/busybox id -g)" != "0" ]; then
+			echo "Must be root!"
+			exit 1
+		fi
 	fi
-fi
+}
+
+# unhide $IMAGEDIR
+unhide_imagedir()
+{
+	while [[ "$($BUSYBOX mount | $BUSYBOX grep $IMAGEDIR)" != "" ]];
+	do
+		$BUSYBOX umount $IMAGEDIR || exit 1
+	done
+}
+
+# hide $IMAGEDIR
+hide_imagedir()
+{
+	$BUSYBOX mount -o ro,relatime,size=0k,mode=000 -t tmpfs tmpfs $IMAGEDIR || exit 1
+}
 
 case $1 in
 	mount)
+		# require root access
+		check_root
+		unhide_imagedir
+
+		# enumerate all images on $IMAGEDIR
+		# and process the ones with a matching .config
+		# file
+		for f in $($BUSYBOX ls $IMAGEDIR/*.secure);
+		do
+			if [[ -f ${f%.*}.config ]]; then
+				IMAGE=$($BUSYBOX basename ${f%.*})
+				MOUNTPOINT=$($BUSYBOX cat ${f%.*}.config | $BUSYBOX cut -d' ' -f1)
+				MOUNTOPTS=$($BUSYBOX cat ${f%.*}.config | $BUSYBOX cut -d' ' -f2)
+				if [[ "$MOUNTOPTS" != "" ]]; then
+					MOUNTOPTS="-o ${MOUNTOPTS}"
+				fi
+				if [[ "$MOUNTPOINT" != "" ]]; then
+					$CRYPTSETUP luksOpen -d $KEY $f $IMAGE || exit 1
+					$BUSYBOX mount $MOUNTOPTS /dev/mapper/$IMAGE $MOUNTPOINT || exit 1
+				fi
+			fi
+		done
+		hide_imagedir
+		exit 0
+		;;
+	unmount|umount)
+		# require root
+		check_root
+		unhide_imagedir
+
+		for f in $($BUSYBOX ls $IMAGEDIR/*.secure | $BUSYBOX sort -r);
+		do
+			if [[ -f ${f%.*}.config ]]; then
+				IMAGE=$($BUSYBOX basename ${f%.*})
+				MOUNTPOINT=$($BUSYBOX cat ${f%.*}.config | $BUSYBOX cut -d' ' -f1)
+				if [[ "$MOUNTPOINT" != "" ]]; then
+					$BUSYBOX umount $MOUNTPOINT || exit 1
+					$CRYPTSETUP luksClose $IMAGE || exit 1
+				fi
+			fi
+		done
+		hide_imagedir
+		exit 0;
+		;;
+	status)
+		if [[ "$($BUSYBOX mount | $BUSYBOX grep /dev/mapper)" != "" ]]; then
+			exit 0
+		else
+			exit 1
+		fi
+		;;
+	mount-old)
+		# require root access
+		check_root
+
 		# wait for the sdcard to be mounted
 		if [ ! -f /storage/sdcard0/.ext-volume ]; then
 			echo "Image not found!"
@@ -29,12 +111,22 @@ case $1 in
 		/system/xbin/busybox mount /dev/block/securesd /data/extsd
 		exit 0
 		;;
-	unmount|umount)
+	unmount-old|umount-old)
+		# require root access
+		check_root
+
 		# remove loop device
 		/system/xbin/busybox umount -f /data/extsd
 		#/system/xbin/busybox losetup -d /dev/block/securesd
 		/system/xbin/busybox rm -f /dev/block/securesd
 		exit 0
+		;;
+	status-old)
+		if [ "$(/system/xbin/busybox mount | /system/xbin/busybox grep securesd)" != "" ]; then
+			exit 0
+		else
+			exit 1
+		fi
 		;;
 	*)
 		echo "Usage: securesd mount|unmount"
