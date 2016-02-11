@@ -11,10 +11,10 @@
 #include <libgen.h>
 
 #define IMAGEDIR		"/sdcard/.securesd"
-#define FSTAB				"/sdcard/.securesd/fstab"
+#define FSTAB				"/data/system/securesd.fstab"
 #define CRYPTSETUP	"/system/xbin/cryptsetup"
 #define BUSYBOX			"/system/xbin/busybox"
-#define KEY					"/data/system/cryptsetup.key"
+#define KEY					"/data/system/securesd.key"
 #define DEBUG				(0)
 
 struct fstab_entry
@@ -382,7 +382,7 @@ static int unmount_volumes()
 			return -1;
 		}
 	}
-	hide_imagedir();
+	/* hide_imagedir(); */
 	return 0;
 }
 
@@ -392,6 +392,9 @@ static int unmount_volumes()
 int main(int argc, char **argv)
 {
 	int first_arg = 1;
+
+	setuid(geteuid());
+	setgid(getegid());
 
 	if (!strcmp(argv[1], "wait"))
 	{
@@ -416,6 +419,11 @@ int main(int argc, char **argv)
 	else if (!strcmp(argv[first_arg], "status"))
 	{
 		return securesd_status();
+	}
+	else if (!strcmp(argv[first_arg], "debuginfo"))
+	{
+		fprintf(stdout, "uid: %i\n", getuid());
+		fprintf(stdout, "euid: %i\n", geteuid());
 	}
 
 	return 0;

@@ -4,14 +4,11 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.ProgressBar;
-
-import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -23,34 +20,10 @@ public class MainActivity extends AppCompatActivity
     {
         if (mountButton.isInEditMode())
             return;
-        try
-        {
-            String cmd = "/system/xbin/securesd status";
-            Process proc = Runtime.getRuntime().exec(cmd);
-            if (proc.waitFor() == 0)
-            {
-                mounted = true;
-                mountButton.setText("Unmount Secure SD");
-                mountButton.setEnabled(true);
-            } else
-            {
-                mounted = false;
-                mountButton.setText("Mount Secure SD");
-                mountButton.setEnabled(true);
-            }
-        }
-        catch (IOException ex)
-        {
-            Log.d("SecureSD", "updateMountState(): IOException");
-        }
-        catch (InterruptedException ex)
-        {
-            Log.d("SecureSD", "updateMountState(): InterruptedException");
-        }
-        finally
-        {
-            progress.setVisibility(View.INVISIBLE);
-        }
+        mounted = SecureSD.getStatus();
+        mountButton.setText(mounted ? "Unmount Secure SD" : "Mount Secure SD");
+        mountButton.setEnabled(true);
+        progress.setVisibility(View.INVISIBLE);
     }
 
     @Override
@@ -85,16 +58,10 @@ public class MainActivity extends AppCompatActivity
         @Override
         protected Object doInBackground(Object[] params)
         {
-            String cmd = String.format("/system/xbin/su root /system/xbin/securesd %s",
-                    mounted ? "unmount" : "mount");
-            try
-            {
-                Process proc = Runtime.getRuntime().exec(cmd);
-                proc.waitFor();
-            } catch (Exception ex)
-            {
-                Log.d("SecureSD", "Exception!");
-            }
+            if (mounted)
+                SecureSD.unmount();
+            else
+                SecureSD.mount();
             return null;
         }
 

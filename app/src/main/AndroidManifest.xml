@@ -18,6 +18,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <receiver android:name=".MediaIntentReceiver" >
+            <intent-filter>
+                <data android:scheme="file" />
+                <action android:name="android.intent.action.MEDIA_MOUNTED" />
+                <action android:name="android.intent.action.MEDIA_UNMOUNTED" />
+                <action android:name="android.intent.action.MEDIA_EJECT" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
