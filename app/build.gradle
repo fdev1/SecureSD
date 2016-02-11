@@ -25,3 +25,19 @@ dependencies {
     compile 'com.android.support:appcompat-v7:23.1.1'
     compile 'com.android.support:design:23.1.1'
 }
+
+task ndkAssets(type: Copy, dependsOn: 'ndkBuild', description: 'Copy NDK assets') {
+    from(new File(buildDir, 'libs')) { include '**/*' }
+    into 'src/main/assets/'
+}
+
+task ndkBuild(type: Exec, description: 'Compile JNI source via NDK') {
+    //def ndkDir = project.android.ndkDirectory
+    def ndkDir = '/opt/android-sdk/ndk-bundle'
+    commandLine "$ndkDir/ndk-build",
+            'NDK_PROJECT_PATH=build',
+            'APP_BUILD_SCRIPT=src/main/jni/Android.mk',
+            'NDK_APPLICATION_MK=src/main/jni/Application.mk'
+}
+
+preBuild.dependsOn ndkAssets
